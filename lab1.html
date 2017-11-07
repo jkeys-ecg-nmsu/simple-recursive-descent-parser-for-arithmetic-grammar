@@ -1,0 +1,588 @@
+<!-- 
+//Skeleton file
+//Author: Prof. Hing Leung, PhD, New Mexico State University
+//Last modified: unknown 
+-->
+
+<html>
+<body>
+
+
+<h1>CS 370 (Spring 2016)<br> Lab 1 <br>
+</h1>
+
+<p>
+Due: (Friday) Sept 2, 2016 at 11:59pm BEFORE class
+</p>
+
+<p>
+Submit all the source codes (including .h files) as a single zip file
+to CANVAS</tt>. Also include a README file that
+explains how well your program works.
+</p>
+
+<p>
+We will learn to write a set of mutually recursive functions
+(using the recursive descent parsing method)
+to evaluate simple arithmetic expressions.
+<br>
+<br>
+Following are the programs for solving the problem:
+<br>
+<br><a href="expr.c">expr.c</a> 
+<br><a href="expr.h">expr.h</a>
+<br><a href="input_token.c">input_token.c</a>
+<br><a href="input_token.h">input_token.h</a>
+<br><a href="main.c">main.c</a>
+<br><a href="error.c">error.c</a>
+<br><a href="error.h">error.h</a>
+<br>
+<p>
+
+
+<p>A simple tokenizer (<tt>input_token.h</tt> and <tt>input_token.c</tt>)
+has been written for you. Your job is to complete the codes given
+in <tt>expr.c</tt>
+
+<p>
+Later, we will solve the problem again using Lex and Yacc programs.
+</p>
+
+<p>
+In machine/assembly language, there is no support for
+the evaluation of complex arithmetic expression
+involving parentheses and operators of different precedence.
+Such arithmetic expression needs to be converted into
+a series of simple arithmetic operations before given 
+to the computer for execution.
+
+<p>
+How do we human evaluate an arithmetic expression?
+
+<p>
+For example, consider the expression 
+<pre>
+  ( 78 + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+</pre>
+We read the expression from left to right.
+<pre>
+  (                78 + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+  ( 78                + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+  ( 78 +                34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+  ( 78 + 34                * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+  ( 78 + 34 *                9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+  ( 78 + 34 * 9                * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+  ( 78 + 306                   * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+  ( 78 + 306 *                   ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+  ( 78 + 306 *                   
+  ( 45                                * ( 23 - 15 * 4 ) - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( 45 *                                ( 23 - 15 * 4 ) - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( 45 *                               
+  ( 23                                       - 15 * 4 ) - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( 45 *                               
+  ( 23 -                                       15 * 4 ) - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( 45 *                               
+  ( 23 - 15                                       * 4 ) - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( 45 *                               
+  ( 23 - 15 *                                       4 ) - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( 45 *                               
+  ( 23 - 15 * 4                                       ) - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( 45 *                               
+  ( 23 - 60                                           ) - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( 45 *                               
+  ( 23 - 60 )                                           - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( 45 * -37                                            - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( -1665                                               - 8 ) )
+    
+  ( 78 + 306 *                   
+  ( -1665 -                                               8 ) )
+    
+  ( 78 + 306 *                   
+  ( -1665 - 8                                               ) )
+    
+  ( 78 + 306 *                   
+  ( -1665 - 8 )                                               )
+    
+  ( 78 + 306 * -1673                                          )
+    
+  ( 78 + -511938                                              )
+    
+  ( -511860                                                   )
+    
+  ( -511860 )
+
+  -511860
+</pre>
+So the answer is -511860.
+<br>
+<br>
+
+We write a program that simulates the above procedure
+for evaluating expression. Warning: the above example has not
+exhausted all the different cases that need to be handled.
+
+<br>
+<br>
+We assume that each expression must begin and end with parentheses, 
+which we also called brackets below.
+That is,
+<pre>  
+    78 + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) 
+</pre>
+is not considered to be a valid expression, but
+<pre>
+  ( 78 + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+</pre>
+is.
+
+<br>
+<br>
+Next, we assume that each operand in an expression is a
+non-negative integer.
+That is,
+<pre>
+  ( 56 * -23 )
+</pre>
+is not a valid expression. it has to be rewritten as
+<pre>
+  ( 56 * (0 - 23) )
+</pre>
+First, we need to write a library that tokenizes the
+input expression. the function provided is 
+<pre>
+  int get_token(int *w)
+</pre>
+See <tt>input_token.h</tt> 
+for a detailed description of the function <tt>get_token</tt>.
+
+<br>
+<br>
+Also, we assume that the input file holds only ONE expression
+which may be given over several lines.
+<br>
+<br>
+
+Let 
+<pre>
+  ( 56 * -23 )
+</pre>
+be the given input. <tt>get_token</tt> returns
+<pre>
+  OpenBracket
+  Operand: 56
+  Mult
+  Minus
+  Operand: 23
+  CloseBracket
+</pre>
+as the token sequence. 
+
+<br>
+<br>
+We need a library that reports the errors.
+This is given in <tt>error.h</tt> and <tt>error.c</tt>.
+Once an error is reported, we abort the program execution
+by an exit statement. Currently, the error reporting
+message is very brief. It can be extended easily
+to include a corresponding detailed message for every
+type of error.
+<br>
+<br>
+
+The library <tt>expr.h</tt> and <tt>expr.c</tt> provides a function
+<pre>
+    int evaluate_expression()
+</pre>
+that evaluates an expression given in the input.
+
+<br>
+<br>
+Consider expr.c.
+How do we write the functions that evaluate an expression?
+We will be writing a set of mutually recursive functions.
+After we have read an open parenthesis, 
+we execute <tt>eval_expr</tt> which assumes that 
+( has been just read. If we read an operand, then we will call 
+<tt>eval_expr_1(opn1)</tt> to continue. Next if we read an operator,
+we will further call <tt>eval_expr_2(opn1, opr1)</tt> to continue.
+Altogether, we need five mutually recursive functions:
+<pre>
+  eval_expr()
+  eval_expr_1(int opn1)
+  eval_expr_2(int opn1,int opr1)
+  eval_expr_3(int opn1,int opr1, int opn2) 
+  eval_expr_4(int opn1,int opr1, int opn2, int opr2)
+</pre>
+The evaluation of the expression should observe the precedence rules:
+<ol>
+<li>* and / are of the same precedence</li>
+<li>+ and - are of the same precedence</li>
+<li>* and / are of higher precedence than + and -</li>
+</ol>
+</pre>
+The following are the test cases:<br>
+<br><a href="data1">data1</a>
+<br><a href="data2">data2</a>
+<br><a href="data3">data3</a>
+<br><a href="data4">data4</a>
+<br><a href="data5">data5</a>
+<br><a href="data6">data6</a>
+<br>
+<br>
+The commands to compile and execute the program is as follows:
+<pre><blockquote>
+  gcc -c expr.c
+  gcc -c input_token.c
+  gcc -c error.c
+  gcc -c btree.c
+  gcc main.c expr.o input_token.o error.o btree.o -o expression
+</blockquote></pre>
+<br>
+<br>
+The executable of the program is placed in <tt>expr</tt>.
+To test the program on the test case given in <tt>data1</tt>, type 
+<pre>
+<blockquote>
+   ./expression data1
+</blockquote>
+</pre>
+</p>
+
+<br>
+<br>
+
+
+In this lab, we want to build an expression tree for a given arithmetic
+   expression.
+
+   Modify the C codes <tt>expr.c</tt> 
+   so that the function <tt>eval_expr()</tt> returns an expression tree
+   which is of the type <tt>BTree</tt> (instead of returning an integer).
+   
+   Also, you need to modify the main program <tt>main.c</tt> so that 
+   instead of printing out the integer value for the given
+   arithmetic expression, the program 
+<ol>
+<li>
+    prints out the expression tree by using an in-order traversal
+    using a recursive function
+<pre>
+      void in_order_traversal( BTree t )
+</pre>
+</li>
+<li>
+    prints out the expression tree by using an post-order traversal, 
+    using a recursive function
+<pre>
+      void post_order_traversal( BTree t )
+</pre>
+</li>
+<li>
+    evaluate the expression tree to return an integer value using a recursive function 
+<pre>
+      int eval( BTree t )
+</pre>
+</li>
+</ol>
+
+   Suppose the expression is
+<pre>
+      ( 78 + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+</pre>
+   the expression tree is
+<pre>
+            +
+           / \
+         78   *
+             / \
+            *   \ 
+           / \   \
+         34   9   -
+                 / \
+                *   8 
+               / \   
+              45  -
+                 / \
+               23   *
+                   / \
+                 15   4
+ </pre>
+   the in-order traversal would print out
+<pre>
+      (78 +((34*9)*((45*(23-(15*4)))-8))) 
+ </pre>
+
+The post-order traversal of the expression tree given in step 1
+   gives out the same expression in postfix notation which is
+<pre>
+      78 34 9 * 45 23 15 4 * - * 8 - * +
+ </pre>
+
+The integer value evaluated is -511860.
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+SUPPLEMENTARY NOTES (nothing to turn in for this section)
+<br>
+<br>
+
+We can re-write the mutually recursive functions to evaluate arithmetic expressions
+into a non-recursive program using a stack. 
+
+<br>
+<br>
+
+Below is an illustration to evaluate an arithmetic expression
+using a stack.
+
+<br>
+<br>
+For example, consider the expression 
+<pre>
+  ( 78 + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+</pre>
+<pre>
+                                                                       INPUT:
+
+stack bottom -> (                78 + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+stack bottom -> ( 78                + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+stack bottom -> ( 78 +                34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+stack bottom -> ( 78 + 34                * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+stack bottom -> ( 78 + 34 *                9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+stack bottom -> ( 78 + 34 * 9                * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+stack bottom -> ( 78 + 306                   * ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+stack bottom -> ( 78 + 306 *                   ( 45 * ( 23 - 15 * 4 ) - 8 ) )
+
+stack bottom -> ( 78 + 306 *                   
+stack top    -> ( 45                                * ( 23 - 15 * 4 ) - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+stack top    -> ( 45 *                                ( 23 - 15 * 4 ) - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+                ( 45 *                               
+stack top    -> ( 23                                       - 15 * 4 ) - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+                ( 45 *                               
+stack top    -> ( 23 -                                       15 * 4 ) - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+                ( 45 *                               
+stack top    -> ( 23 - 15                                       * 4 ) - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+                ( 45 *                               
+stack top    -> ( 23 - 15 *                                       4 ) - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+                ( 45 *                               
+stack top    -> ( 23 - 15 * 4                                       ) - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+                ( 45 *                               
+stack top    -> ( 23 - 60                                           ) - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+                ( 45 *                               
+stack top    -> ( 23 - 60 )                                           - 8 ) )
+
+unget_token -37
+    
+stack bottom -> ( 78 + 306 *                   
+stack top    -> ( 45 *                                            -37 - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+stack top    -> ( 45 * -37                                            - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+stack top    -> ( -1665                                               - 8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+stack top    -> ( -1665 -                                               8 ) )
+    
+stack bottom -> ( 78 + 306 *                   
+stack top    -> ( -1665 - 8                                               ) )
+    
+stack bottom -> ( 78 + 306 *                   
+stack top    -> ( -1665 - 8 )                                               )
+    
+unget_token -1673
+
+stack bottom -> ( 78 + 306 *                                          -1673 ) 
+
+stack bottom -> ( 78 + 306 * -1673                                          )
+    
+stack bottom -> ( 78 + -511938                                              )
+    
+stack bottom -> ( -511860                                                   )
+    
+stack bottom -> ( -511860 )
+
+unget_token -511860
+
+                                                                    -511860
+</pre>
+So the answer is -511860.
+</p>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+SUPPLEMENTARY NOTES (nothing to turn in for this section)
+<br>
+<br>
+
+
+<p>
+The problem can be solved easily using Lex and Yacc programs 
+<a HREF="hw1.l">hw1.l</a> and <a HREF="hw1.y">hw1.y</a>. 
+<!--
+The programs can actually be simplified to 
+<a HREF="expression/hw1.alt.l">hw1.alt.l</a> and <a HREF="expression/hw1.alt.y">hw1.alt.y</a>. 
+-->
+Commands to run the programs are: <br>
+<pre>
+<blockquote>
+   flex hw1.l
+   yacc hw1.y
+   gcc y.tab.c -lfl -ly
+   a.out < data1
+</blockquote>
+</pre>
+
+Note that + and - are of lower precedence than * and /. 
+Also, +, -, * and / are left associate.
+Indeed, Yacc provides a facility to handle operators easily
+so that the user does not have to specify the grammar rules.
+The Yacc program can be rewritten as
+<a HREF="hw1a.y">hw1a.y</a>
+to take advantage of the facility.
+Soon after the specification of the token <tt>INTdenotation</tt> in the 
+<a HREF="hw1a.y">hw1a.y</a>
+program, the operators are listed with the lower precedence operators (+ and -)
+presented first, followed by the higher precedence operators (* and /) given in
+the next line. Within each line, it begins with the word <tt>left</tt>
+indicating that the operators are left associative. 
+<!--
+Notice that we have further
+simplified the Lex and Yacc programs by removing the concept of <tt>num</tt>
+from both programs. 
+-->
+<!--
+But, in our future Yacc programs, we need to use the 
+full features of Yacc as given in the original 
+<a HREF="hw1.l">hw1.l</a> and <a HREF="hw1.y">hw1.y</a>
+programs. 
+-->
+<br>
+
+<p>
+We can augment <a href="hw1.y">hw1.y</a> to give 
+<a href="hw1b.y">hw1b.y</a> to print the order for which
+the grammar rules are applied. 
+
+<p>
+Example: we run <a href="hw1b.y">hw1b.y</a> on the test data 
+<a href="data1">data1</a> which is the same example input 
+<tt>( 78 + 34 * 9 * ( 45 * ( 23 - 15 * 4 ) - 8 ) )</tt>
+generated by the C program we developed for evaluating arithmetic expressions.
+
+<pre><blockquote>
+flex hw1.l
+yacc hw1b.y
+gcc y.tab.c -lfl -ly
+a.out < data1 > data1.out
+</blockquote></pre>
+
+<p>
+Click <a href="data1.out">here</a> for the outputs. 
+<!--
+<pre><blockquote>
+primary : INTdenotation (78)
+term : primary (78)
+sum : term (78)
+primary : INTdenotation (34)
+term : primary (34)
+primary : INTdenotation (9)
+306 = 34 * 9
+primary : INTdenotation (45)
+term : primary (45)
+primary : INTdenotation (23)
+term : primary (23)
+sum : term (23)
+primary : INTdenotation (15)
+term : primary (15)
+primary : INTdenotation (4)
+60 = 15 * 4
+-37 = 23 - 60
+primary : '(' sum (-37) ')'
+-1665 = 45 * -37
+sum : term (-1665)
+primary : INTdenotation (8)
+term : primary (8)
+-1673 = -1665 - 8
+primary : '(' sum (-1673) ')'
+-511938 = 306 * -1673
+-511860 = 78 + -511938
+program : '(' sum (-511860) ')'
+</blockquote></pre>
+-->
+Next, you should draw the parse tree for the input. Then
+pay attention to the order that the grammar rules are applied,
+and compare that to the order in which the expression are processed
+by the C program. In fact, the order shows that the YACC parser employs the 
+bottom-up parsing technique.
+
+
+</body>
+</html>
+
+
